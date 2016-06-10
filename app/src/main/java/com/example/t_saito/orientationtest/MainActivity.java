@@ -21,6 +21,8 @@ import java.util.List;
 
 public class MainActivity extends AppCompatActivity implements View.OnClickListener, SensorEventListener {
 
+    private static String TAG = MainActivity.class.getSimpleName();
+
     private Button btn1,
             btn2,
             btn3,
@@ -52,11 +54,15 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             btn14
     };
 
-    private TextView txtSensor, txtOrientation;
+    private TextView txtSensor, txtOrientation, txtSensorPolling;
     private SensorManager mSensorManager;
+
+    /** センサーポーリング */
+    private SensorPollingHandler mSensorPollingHandler = new SensorPollingHandler();
 
     private boolean mIsMagSensor;
     private boolean mIsAccSensor;
+    private float mAngle;
 
     private static final int MATRIX_SIZE = 16;
     /** 回転行列 */
@@ -102,7 +108,14 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
         txtOrientation = (TextView) findViewById(R.id.user_setting_orientation);
         txtSensor = (TextView) findViewById(R.id.sensor);
+        txtSensorPolling = (TextView) findViewById(R.id.sensor_polling);
+    }
 
+    @Override
+    protected void onStart() {
+        super.onStart();
+        // ポーリングスタート
+        mSensorPollingHandler.start();
     }
 
     @Override
@@ -155,7 +168,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             SensorManager.remapCoordinateSystem(inR, SensorManager.AXIS_X, SensorManager.AXIS_Z, outR);
             SensorManager.getOrientation(outR, orientationValues);
 
-            float roll = roundOrientationDegree( radianToDegree(orientationValues[2]) );
+            // 角度取得
+            mAngle = roundOrientationDegree( radianToDegree(orientationValues[2]) );
 
             String z = String.valueOf( radianToDegree(orientationValues[0]) );
             String x = String.valueOf( radianToDegree(orientationValues[1]) );
@@ -164,7 +178,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                             z + ", " + //Z軸方向,azimuth
                             x  + ", " + //X軸方向,pitch
                             y  );       //Y軸方向,roll
-            txtSensor.setText("Z軸:"+ z + "\nX軸:"+ x +"\nY軸:"+ y +"\n角度:" + roll);
+            txtSensor.setText("Z軸:"+ z + "\nX軸:"+ x +"\nY軸:"+ y +"\n角度:" + mAngle);
 
         }
     }
@@ -193,6 +207,8 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     protected void onPause() {
         super.onPause();
+        // ポーリングストップ
+        mSensorPollingHandler.stop();
         //センサーマネージャのリスナ登録破棄
         if (mIsMagSensor || mIsAccSensor) {
             mSensorManager.unregisterListener(this);
@@ -255,39 +271,53 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         Toast.makeText(this, "orientation:" + newConfig.orientation, Toast.LENGTH_SHORT).show();
     }
 
-    @Override
-    public int getRequestedOrientation() {
-        Log.v(this.getClass().getSimpleName(), new Throwable().getStackTrace()[0].getMethodName());
-        return super.getRequestedOrientation();
+    /**
+     * センサーの角度を0.5秒おきに取得
+     */
+    private class SensorPollingHandler extends PollingTask {
+
+        private static final int INTERVAL = 2000;
+
+        public SensorPollingHandler() {
+            super(INTERVAL);
+        }
+
+        @Override
+        public boolean onPolling() {
+            updateAngle();
+            return true;
+        }
     }
 
-    @Override
-    public void setRequestedOrientation(int requestedOrientation) {
-        Log.v(this.getClass().getSimpleName(), new Throwable().getStackTrace()[0].getMethodName());
-        super.setRequestedOrientation(requestedOrientation);
+    /**
+     * 角度取得
+     * @return
+     */
+    private synchronized float updateAngle() {
+        float angle = mAngle;
+        Log.v(TAG, "コールバック角度：" + angle);
+        changeAngleView(angle);
+        return angle;
     }
 
-    @Override
-    public boolean isChangingConfigurations() {
-        Log.v(this.getClass().getSimpleName(), new Throwable().getStackTrace()[0].getMethodName());
-        return super.isChangingConfigurations();
-    }
-
-    @Override
-    public int getChangingConfigurations() {
-        Log.v(this.getClass().getSimpleName(), new Throwable().getStackTrace()[0].getMethodName());
-        return super.getChangingConfigurations();
-    }
-
-    @Override
-    public void applyOverrideConfiguration(Configuration overrideConfiguration) {
-        Log.v(this.getClass().getSimpleName(), new Throwable().getStackTrace()[0].getMethodName());
-        super.applyOverrideConfiguration(overrideConfiguration);
-    }
-
-    @Override
-    public Context createConfigurationContext(Configuration overrideConfiguration) {
-        Log.v(this.getClass().getSimpleName(), new Throwable().getStackTrace()[0].getMethodName());
-        return super.createConfigurationContext(overrideConfiguration);
+    private synchronized void changeAngleView(final float angle) {
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                // テキスト更新
+                if (txtSensorPolling != null) {
+                    txtSensorPolling.setText("コールバック時の角度：" + angle);
+                }
+                if (angle == 90) {
+                    setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+                } else if (angle == -90) {
+                    setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE);
+                } else if (angle == 0) {
+                    setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                } else if (angle == 180) {
+                    setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT);
+                }
+            }
+        });
     }
 }
