@@ -13,6 +13,7 @@ import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.ImageButton;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.provider.Settings.System;
@@ -36,7 +37,9 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             btn11,
             btn12,
             btn13,
-            btn14;
+            btn14,
+            btnPortrait,
+            btnLandscape;
 
     private Button[] btns = { btn1,
             btn2,
@@ -63,6 +66,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     private boolean mIsMagSensor;
     private boolean mIsAccSensor;
     private float mAngle;
+    private int mOrientation = -1;
 
     private static final int MATRIX_SIZE = 16;
     /** 回転行列 */
@@ -109,13 +113,26 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
         txtOrientation = (TextView) findViewById(R.id.user_setting_orientation);
         txtSensor = (TextView) findViewById(R.id.sensor);
         txtSensorPolling = (TextView) findViewById(R.id.sensor_polling);
+
+        btnLandscape = (Button) findViewById(R.id.land_button);
+        btnLandscape.setOnClickListener(this);
+        btnPortrait = (Button) findViewById(R.id.port_button);
+        btnPortrait.setOnClickListener(this);
     }
 
     @Override
     protected void onStart() {
         super.onStart();
-        // ポーリングスタート
-        mSensorPollingHandler.start();
+        mOrientation = -1;
+        try {
+            mOrientation = System.getInt(getContentResolver(), System.ACCELEROMETER_ROTATION);
+        } catch (Settings.SettingNotFoundException e) {
+            e.printStackTrace();
+        }
+        if (mOrientation == 1) {
+            // ポーリングスタート
+            mSensorPollingHandler.start();
+        }
     }
 
     @Override
@@ -207,8 +224,11 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
     @Override
     protected void onPause() {
         super.onPause();
-        // ポーリングストップ
-        mSensorPollingHandler.stop();
+        if (mOrientation == 1) {
+            // ポーリングストップ
+            mSensorPollingHandler.stop();
+        }
+
         //センサーマネージャのリスナ登録破棄
         if (mIsMagSensor || mIsAccSensor) {
             mSensorManager.unregisterListener(this);
@@ -262,6 +282,16 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
             case R.id.screen_orientation_user_portrait:
                 setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT);
                 break;
+            case R.id.land_button:
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE);
+                btnLandscape.setVisibility(View.GONE);
+                btnPortrait.setVisibility(View.VISIBLE);
+                break;
+            case R.id.port_button:
+                setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT);
+                btnLandscape.setVisibility(View.VISIBLE);
+                btnPortrait.setVisibility(View.GONE);
+                break;
         }
     }
 
@@ -310,12 +340,20 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
                 }
                 if (angle == 90) {
                     setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+                    btnLandscape.setVisibility(View.GONE);
+                    btnPortrait.setVisibility(View.VISIBLE);
                 } else if (angle == -90) {
                     setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_LANDSCAPE);
+                    btnLandscape.setVisibility(View.GONE);
+                    btnPortrait.setVisibility(View.VISIBLE);
                 } else if (angle == 0) {
                     setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                    btnLandscape.setVisibility(View.VISIBLE);
+                    btnPortrait.setVisibility(View.GONE);
                 } else if (angle == 180) {
                     setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_REVERSE_PORTRAIT);
+                    btnLandscape.setVisibility(View.VISIBLE);
+                    btnPortrait.setVisibility(View.GONE);
                 }
             }
         });
